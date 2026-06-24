@@ -3,198 +3,666 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
-  <title>FoodPrint — Contamination Intelligence</title>
+  <title>FoodPrint — Contamination Scanner</title>
   <style>
-    :root { --bg:#060606; --panel:#090909; --ink:#f2f2f2; --muted:#717171; --line:#181818; --red:#ff1a00; --yellow:#e7b923; --green:#5dbb63; }
-    * { box-sizing:border-box; }
-    html { background:var(--bg); }
-    body { margin:0; min-width:320px; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
-    button,canvas { font:inherit; }
-    .shell { width:min(1320px,calc(100% - 48px)); margin:0 auto; }
-    header { height:67px; display:flex; align-items:center; border-bottom:1px solid var(--red); }
-    .brand { font-size:11px; font-weight:700; letter-spacing:.36em; }
-    .header-meta { margin-left:auto; display:flex; align-items:center; gap:13px; color:#5d5d5d; font-size:9px; letter-spacing:.16em; text-transform:uppercase; }
-    .pulse { width:5px; height:5px; background:var(--red); animation:pulse 1.8s infinite; }
-    .hero { min-height:455px; display:grid; place-items:center; position:relative; overflow:hidden; border-inline:1px solid #0e0e0e; background:radial-gradient(circle at 50% 47%,rgba(255,26,0,.09) 0,rgba(255,26,0,.025) 25%,transparent 57%); }
-    .hero::before,.hero::after { content:""; position:absolute; background:#111; }
-    .hero::before { width:1px; height:100%; left:50%; }
-    .hero::after { height:1px; width:100%; top:50%; }
-    .hero-content { position:relative; z-index:1; text-align:center; background:var(--bg); padding:26px 62px; }
-    .eyebrow { color:var(--red); font-size:9px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; }
-    .hero-score { font-size:clamp(82px,11vw,140px); line-height:.82; font-weight:650; letter-spacing:-.08em; margin:25px 0 21px; font-variant-numeric:tabular-nums; }
-    .hero-score span { color:#3b3b3b; font-size:.26em; letter-spacing:-.02em; margin-left:10px; }
-    .hero-detail { color:#5e5e5e; font-size:9px; letter-spacing:.18em; text-transform:uppercase; }
-    .section-kicker { display:flex; align-items:center; gap:14px; margin:52px 0 18px; color:#777; font-size:9px; letter-spacing:.22em; text-transform:uppercase; }
-    .section-kicker::before { content:""; width:24px; height:1px; background:var(--red); }
-    .metrics { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); }
-    .metric { min-height:178px; padding:25px 26px 23px; border-right:1px solid var(--line); background:var(--panel); }
-    .metric:last-child { border:0; }
-    .metric-head { display:flex; justify-content:space-between; color:#878787; font-size:9px; font-weight:650; letter-spacing:.2em; }
-    .metric-index { color:#343434; }
-    .metric-value { margin:27px 0 22px; display:flex; align-items:baseline; gap:10px; font-size:43px; line-height:1; letter-spacing:-.055em; font-variant-numeric:tabular-nums; }
-    .verdict { color:var(--red); font-size:9px; font-weight:700; letter-spacing:.18em; }
-    .track { height:2px; background:#252525; overflow:hidden; }
-    .fill { display:block; width:calc(var(--score,0) * 10%); height:100%; background:var(--red); transform-origin:left; animation:reveal 1.15s cubic-bezier(.22,1,.36,1) both; }
-    .table-wrap { border:1px solid var(--line); overflow-x:auto; background:var(--panel); }
-    table { width:100%; border-collapse:collapse; min-width:760px; }
-    th { height:45px; color:#545454; text-align:left; font-size:8px; font-weight:650; letter-spacing:.22em; text-transform:uppercase; border-bottom:1px solid var(--line); }
-    td { height:56px; color:#999; font-size:12px; border-bottom:1px solid #121212; }
-    th,td { padding:0 18px; }
-    tbody tr:last-child td { border-bottom:0; }
-    tbody tr:hover { background:#0d0d0d; }
-    td.food { color:#e7e7e7; font-weight:560; }
-    .date { color:#555; font-size:10px; font-variant-numeric:tabular-nums; }
-    .score { font-weight:700; font-variant-numeric:tabular-nums; }
-    .score.high { color:var(--red); }.score.mod { color:var(--yellow); }.score.low { color:var(--green); }
-    .empty { padding:70px 20px; text-align:center; color:#444; font-size:10px; letter-spacing:.16em; text-transform:uppercase; }
-    .chart-panel { border:1px solid var(--line); background:var(--panel); padding:28px; height:405px; margin-bottom:60px; }
-    footer { border-top:1px solid var(--line); padding:25px 0 34px; display:flex; justify-content:space-between; color:#3e3e3e; font-size:8px; letter-spacing:.18em; text-transform:uppercase; }
-    .error-banner { display:none; margin-top:18px; border:1px solid #4a0b05; padding:12px 15px; color:#bc493d; font-size:10px; letter-spacing:.08em; }
-    @keyframes reveal { from { transform:scaleX(0); } to { transform:scaleX(1); } }
-    @keyframes pulse { 50% { opacity:.2; } }
-    @media (max-width:760px) {
-      .shell { width:min(100% - 24px,1320px); }
-      .hero { min-height:360px; }.hero-content { padding:25px 22px; }
-      .metrics { grid-template-columns:1fr; }.metric { border-right:0; border-bottom:1px solid var(--line); }
-      .metric:last-child { border-bottom:0; }.section-kicker { margin-top:38px; }
-      .chart-panel { padding:18px 12px; height:375px; } footer { gap:20px; }
-      .header-meta span:last-child { display:none; }
+    :root {
+      --bg:#050505; --panel:#08080a; --ink:#f0f0f0; --muted:#555;
+      --line:#141414; --red:#ff1a00; --yellow:#e7b923; --green:#3ecf6a;
+      --red-glow: rgba(255,26,0,.18);
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html,body { height:100%; }
+    body {
+      background:var(--bg); color:var(--ink);
+      font-family:'SF Mono',ui-monospace,Menlo,'Courier New',monospace;
+      -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    }
+
+    /* ── canvas bg ── */
+    #bg-canvas { position:fixed; inset:0; z-index:0; opacity:.45; pointer-events:none; }
+
+    .shell { position:relative; z-index:1; width:min(1160px,calc(100% - 48px)); margin:0 auto; }
+
+    /* ── HEADER ── */
+    header {
+      position:relative; z-index:2; height:64px;
+      display:flex; align-items:center; border-bottom:1px solid #ff1a0033;
+      background:rgba(5,5,5,.82); backdrop-filter:blur(8px);
+    }
+    .brand {
+      font-size:13px; font-weight:700; letter-spacing:.38em;
+      color:#fff; position:relative;
+    }
+    .brand::after {
+      content:''; position:absolute; bottom:-2px; left:0; width:100%; height:1px;
+      background:var(--red); transform:scaleX(0); transform-origin:left;
+      transition:transform .4s ease; animation:brand-line 2s ease .8s forwards;
+    }
+    @keyframes brand-line { to { transform:scaleX(1); } }
+
+    .header-right {
+      margin-left:auto; display:flex; align-items:center; gap:16px;
+      font-size:9px; letter-spacing:.2em; text-transform:uppercase; color:#3a3a3a;
+    }
+    .pulse-dot {
+      width:6px; height:6px; border-radius:50%; background:var(--red);
+      box-shadow:0 0 8px var(--red); animation:blink 1.6s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
+
+    /* ── FORM SECTION ── */
+    .scan-section { padding:56px 0 0; }
+    .section-kicker {
+      display:flex; align-items:center; gap:16px; margin-bottom:32px;
+      font-size:9px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; color:#2e2e2e;
+    }
+    .section-kicker::before { content:''; width:28px; height:1px; background:var(--red); flex-shrink:0; }
+
+    .form-grid {
+      display:grid; grid-template-columns:repeat(3,1fr);
+      gap:1px; background:#0e0e0e;
+      border:1px solid #0e0e0e; border-bottom:none;
+      box-shadow:0 0 60px rgba(255,26,0,.04);
+    }
+
+    /* floating-label field */
+    .field {
+      background:var(--panel); padding:22px 22px 16px; position:relative;
+      transition:background .2s;
+    }
+    .field:focus-within { background:#0c0c0e; }
+    .field:focus-within::before {
+      content:''; position:absolute; inset:0; border:1px solid #ff1a0044;
+      pointer-events:none; z-index:1;
+      box-shadow:inset 0 0 22px rgba(255,26,0,.04);
+    }
+
+    .field label {
+      display:block; font-size:8px; font-weight:700; letter-spacing:.28em;
+      text-transform:uppercase; color:#2e2e2e;
+      transition:color .2s;
+    }
+    .field:focus-within label { color:#ff1a0099; }
+
+    .field input, .field select {
+      width:100%; background:transparent; border:none; border-bottom:1px solid #1c1c1c;
+      color:var(--ink); font-size:16px; font-weight:500; padding:10px 0 6px;
+      outline:none; font-family:inherit; transition:border-color .25s;
+      caret-color:var(--red);
+    }
+    .field input::placeholder { color:#222; transition:color .25s; }
+    .field input:focus::placeholder { color:#333; }
+    .field input:focus, .field select:focus { border-bottom-color:var(--red); }
+    .field select { appearance:none; cursor:pointer; }
+    .field select option { background:#111; }
+
+    /* select arrow */
+    .select-wrap { position:relative; }
+    .select-wrap::after {
+      content:'▾'; position:absolute; right:2px; top:50%; transform:translateY(-50%);
+      color:#333; pointer-events:none; font-size:12px;
+    }
+
+    /* organic toggle */
+    .organic-field { display:flex; align-items:center; justify-content:space-between; cursor:default; }
+    .organic-right { display:flex; align-items:center; gap:10px; }
+    .toggle {
+      width:44px; height:24px; border-radius:12px; background:#111; border:1px solid #1e1e1e;
+      position:relative; cursor:pointer; transition:background .25s, border-color .25s, box-shadow .25s; flex-shrink:0;
+    }
+    .toggle.on { background:var(--red); border-color:var(--red); box-shadow:0 0 12px rgba(255,26,0,.35); }
+    .toggle::after {
+      content:''; position:absolute; width:18px; height:18px; background:#fff;
+      border-radius:50%; top:2px; left:2px; transition:transform .25s cubic-bezier(.34,1.56,.64,1);
+    }
+    .toggle.on::after { transform:translateX(20px); }
+    .toggle-label { font-size:11px; color:#333; letter-spacing:.06em; transition:color .2s; min-width:20px; }
+    .toggle.on ~ .toggle-label { color:#ff6644; }
+
+    /* scan button */
+    .scan-btn-row { background:#0e0e0e; }
+    .scan-btn {
+      width:100%; height:60px; background:var(--red); border:none; color:#fff;
+      font-size:9px; font-weight:800; letter-spacing:.38em; text-transform:uppercase;
+      cursor:pointer; font-family:inherit; position:relative; overflow:hidden;
+      transition:opacity .15s;
+    }
+    .scan-btn::before {
+      content:''; position:absolute; inset:0;
+      background:linear-gradient(90deg,transparent,rgba(255,255,255,.08),transparent);
+      transform:translateX(-100%); transition:transform 0s;
+    }
+    .scan-btn:hover::before { transform:translateX(100%); transition:transform .55s ease; }
+    .scan-btn:hover { opacity:.9; box-shadow:0 0 32px rgba(255,26,0,.3); }
+    .scan-btn:disabled { opacity:.35; cursor:not-allowed; }
+    .scan-btn:disabled::before { display:none; }
+
+    /* scan progress bar */
+    .scan-progress { height:2px; background:#0e0e0e; overflow:hidden; }
+    .scan-progress-fill {
+      height:100%; width:0; background:var(--red);
+      box-shadow:0 0 8px var(--red);
+      transition:width .1s linear;
+    }
+
+    /* ── SCAN OVERLAY ── */
+    #scan-overlay {
+      position:fixed; inset:0; background:rgba(5,5,5,.94); z-index:100;
+      display:none; align-items:center; justify-content:center;
+      flex-direction:column; gap:28px;
+      backdrop-filter:blur(4px);
+    }
+    #scan-overlay.active { display:flex; }
+    .overlay-label {
+      font-size:10px; letter-spacing:.5em; text-transform:uppercase; color:var(--red);
+      animation:flicker 1.8s infinite;
+    }
+    @keyframes flicker { 0%,100%{opacity:1} 48%{opacity:1} 50%{opacity:.3} 52%{opacity:1} }
+    .overlay-food { font-size:28px; font-weight:700; letter-spacing:-.02em; color:#fff; }
+    .overlay-bar {
+      width:260px; height:1px; background:#1a1a1a; overflow:hidden; position:relative;
+    }
+    .overlay-sweep {
+      position:absolute; top:0; left:-100%; width:100%; height:100%;
+      background:linear-gradient(90deg, transparent, var(--red), transparent);
+      animation:sweep 1s linear infinite;
+    }
+    @keyframes sweep { to { left:100%; } }
+
+    /* ── RESULT ── */
+    .result-section { display:none; margin-top:1px; }
+    .result-section.visible { display:block; }
+
+    .result-hero {
+      display:grid; grid-template-columns:220px 1fr;
+      background:var(--panel); border:1px solid #0e0e0e; border-bottom:none;
+    }
+    .score-block {
+      border-right:1px solid #0e0e0e; padding:40px 32px;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      position:relative; overflow:hidden;
+    }
+    .score-block::before {
+      content:''; position:absolute; inset:0;
+      background:radial-gradient(circle at 50% 60%, rgba(255,26,0,.06) 0, transparent 70%);
+    }
+    .score-eyebrow { font-size:7px; letter-spacing:.32em; text-transform:uppercase; color:#2e2e2e; margin-bottom:14px; }
+    .score-num {
+      font-size:96px; font-weight:700; line-height:1; letter-spacing:-.06em;
+      font-variant-numeric:tabular-nums; position:relative; z-index:1;
+    }
+    .score-denom { font-size:.22em; color:#2e2e2e; }
+    .score-badge {
+      margin-top:12px; font-size:8px; font-weight:800; letter-spacing:.32em; text-transform:uppercase;
+      padding:5px 14px; border:1px solid currentColor; position:relative; z-index:1;
+    }
+    .score-badge.HIGH    { color:var(--red);    border-color:#ff1a0044; background:rgba(255,26,0,.06); }
+    .score-badge.MODERATE{ color:var(--yellow); border-color:#e7b92344; background:rgba(231,185,35,.06); }
+    .score-badge.LOW,
+    .score-badge.MINIMAL { color:var(--green);  border-color:#3ecf6a44; background:rgba(62,207,106,.06); }
+
+    .breakdown { padding:32px 32px; display:flex; flex-direction:column; justify-content:center; gap:20px; }
+    .brow {
+      display:flex; flex-direction:column; gap:7px;
+    }
+    .brow-head { display:flex; justify-content:space-between; align-items:baseline; }
+    .brow-name { font-size:7px; font-weight:700; letter-spacing:.26em; text-transform:uppercase; color:#333; }
+    .brow-val  { font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:.08em; }
+    .brow-val.HIGH     { color:var(--red); }
+    .brow-val.MODERATE { color:var(--yellow); }
+    .brow-val.LOW, .brow-val.MINIMAL { color:var(--green); }
+    .track { height:1px; background:#141414; overflow:hidden; }
+    .track-fill {
+      height:100%; width:0; transform-origin:left;
+      transition:width 1.1s cubic-bezier(.22,1,.36,1);
+    }
+    .track-fill.HIGH     { background:var(--red);    box-shadow:0 0 6px var(--red); }
+    .track-fill.MODERATE { background:var(--yellow); box-shadow:0 0 6px var(--yellow); }
+    .track-fill.LOW, .track-fill.MINIMAL { background:var(--green); box-shadow:0 0 6px var(--green); }
+
+    .verdict-bar {
+      border:1px solid #0e0e0e; border-top:none;
+      background:#070709; padding:20px 24px;
+      font-size:12px; color:#555; line-height:1.8;
+      border-left:2px solid var(--red);
+    }
+    .verdict-bar strong { color:#ccc; }
+
+    .meta-grid {
+      display:grid; grid-template-columns:repeat(4,1fr);
+      gap:1px; background:#0e0e0e; border:1px solid #0e0e0e; border-top:none; margin-bottom:1px;
+    }
+    .meta-cell { background:var(--panel); padding:18px 20px; }
+    .meta-lbl { font-size:7px; letter-spacing:.22em; text-transform:uppercase; color:#282828; margin-bottom:7px; }
+    .meta-val { font-size:11px; color:#666; line-height:1.5; }
+
+    /* ── HISTORY ── */
+    .history-section { padding:52px 0 70px; }
+    .table-shell { border:1px solid #0e0e0e; background:var(--panel); overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; min-width:680px; }
+    th {
+      height:40px; text-align:left; font-size:7px; font-weight:700;
+      letter-spacing:.24em; text-transform:uppercase; color:#252525;
+      border-bottom:1px solid #0e0e0e; padding:0 18px;
+    }
+    td { height:54px; font-size:12px; color:#666; border-bottom:1px solid #0a0a0a; padding:0 18px; vertical-align:middle; }
+    tr:last-child td { border-bottom:none; }
+    tbody tr { transition:background .12s; }
+    tbody tr:hover { background:#0b0b0d; }
+    td.food-cell { color:#ddd; font-weight:600; }
+    .sc { font-weight:700; font-variant-numeric:tabular-nums; }
+    .sc.h { color:var(--red); } .sc.m { color:var(--yellow); } .sc.l { color:var(--green); }
+    .empty-msg { padding:64px 20px; text-align:center; color:#1e1e1e; font-size:8px; letter-spacing:.22em; text-transform:uppercase; }
+
+    footer {
+      border-top:1px solid #0e0e0e; padding:22px 0 32px;
+      display:flex; justify-content:space-between;
+      font-size:7px; letter-spacing:.2em; text-transform:uppercase; color:#1c1c1c;
+    }
+
+    /* ── ANIMATIONS ── */
+    .fade-in { animation:fadeIn .5s ease both; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:none} }
+    .count-up { display:inline-block; }
+
+    @media(max-width:780px){
+      .shell{width:calc(100% - 24px);}
+      .form-grid{grid-template-columns:1fr 1fr;}
+      .result-hero{grid-template-columns:1fr;}
+      .score-block{border-right:none;border-bottom:1px solid #0e0e0e;}
+      .meta-grid{grid-template-columns:1fr 1fr;}
+    }
+    @media(max-width:500px){
+      .form-grid{grid-template-columns:1fr;}
+      .meta-grid{grid-template-columns:1fr;}
     }
   </style>
 </head>
 <body>
-  <header class="shell">
+
+<canvas id="bg-canvas"></canvas>
+
+<!-- scan overlay -->
+<div id="scan-overlay">
+  <div class="overlay-label">Analyzing contamination profile</div>
+  <div class="overlay-food" id="overlay-food">—</div>
+  <div class="overlay-bar"><div class="overlay-sweep"></div></div>
+</div>
+
+<header>
+  <div class="shell" style="display:flex;align-items:center;width:100%;max-width:none;padding:0 24px;">
     <div class="brand">FOODPRINT</div>
-    <div class="header-meta"><i class="pulse"></i><span>Live contamination index</span><span id="updated">Awaiting data</span></div>
-  </header>
+    <div class="header-right">
+      <nav style="display:flex;gap:24px;font-size:9px;letter-spacing:.2em;text-transform:uppercase;">
+        <a href="/" style="color:var(--red);text-decoration:none;">Scanner</a>
+        <a href="/news" style="color:#333;text-decoration:none;transition:color .15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#333'">News</a>
+        <a href="/tips" style="color:#333;text-decoration:none;transition:color .15s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='#333'">Tips</a>
+      </nav>
+      <div class="pulse-dot"></div>
+      <span id="entry-count" style="color:#222">— entries</span>
+    </div>
+  </div>
+</header>
 
-  <main class="shell">
-    <section class="hero">
-      <div class="hero-content">
-        <div class="eyebrow">Contamination concern</div>
-        <div class="hero-score" id="latest-score">—<span>/10</span></div>
-        <div class="hero-detail" id="latest-detail">No logged food entries</div>
+<main class="shell">
+
+  <!-- FORM -->
+  <section class="scan-section">
+    <div class="section-kicker">Scan a food item</div>
+
+    <div class="form-grid">
+      <div class="field">
+        <label>Food name</label>
+        <input id="f-food" type="text" placeholder="e.g. strawberries" autocomplete="off" spellcheck="false">
       </div>
-    </section>
+      <div class="field">
+        <label>Store</label>
+        <input id="f-store" type="text" placeholder="e.g. HEB, Whole Foods" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>City</label>
+        <input id="f-city" type="text" placeholder="e.g. Austin" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>State</label>
+        <input id="f-state" type="text" placeholder="e.g. TX" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Packaging</label>
+        <div class="select-wrap">
+          <select id="f-packaging">
+            <option value="unknown">Unknown</option>
+            <option value="plastic clamshell">Plastic clamshell</option>
+            <option value="plastic bag">Plastic bag</option>
+            <option value="plastic wrap">Plastic wrap</option>
+            <option value="plastic bottle">Plastic bottle</option>
+            <option value="styrofoam">Styrofoam</option>
+            <option value="can">Can</option>
+            <option value="cardboard">Cardboard</option>
+            <option value="glass">Glass</option>
+            <option value="paper bag">Paper bag</option>
+            <option value="none">None (bulk / fresh)</option>
+          </select>
+        </div>
+      </div>
+      <div class="field organic-field">
+        <label>Organic</label>
+        <div class="organic-right">
+          <div class="toggle" id="organic-toggle"></div>
+          <span class="toggle-label" id="organic-label">No</span>
+        </div>
+      </div>
+    </div>
 
-    <div class="error-banner" id="error-banner">Data connection interrupted. Retrying automatically.</div>
-    <div class="section-kicker">Current exposure profile</div>
-    <section class="metrics">
-      <article class="metric">
-        <div class="metric-head"><span>PESTICIDE</span><span class="metric-index">01</span></div>
-        <div class="metric-value"><span id="pesticide-value">0.0</span><b class="verdict" id="pesticide-verdict">LOW</b></div>
-        <div class="track"><i class="fill" id="pesticide-fill"></i></div>
-      </article>
-      <article class="metric">
-        <div class="metric-head"><span>MICROPLASTIC</span><span class="metric-index">02</span></div>
-        <div class="metric-value"><span id="microplastic-value">0.0</span><b class="verdict" id="microplastic-verdict">LOW</b></div>
-        <div class="track"><i class="fill" id="microplastic-fill"></i></div>
-      </article>
-      <article class="metric">
-        <div class="metric-head"><span>PROCESSING</span><span class="metric-index">03</span></div>
-        <div class="metric-value"><span id="processing-value">0.0</span><b class="verdict" id="processing-verdict">LOW</b></div>
-        <div class="track"><i class="fill" id="processing-fill"></i></div>
-      </article>
-    </section>
+    <div class="scan-btn-row">
+      <button class="scan-btn" id="scan-btn">Run contamination scan</button>
+      <div class="scan-progress"><div class="scan-progress-fill" id="progress-fill"></div></div>
+    </div>
+  </section>
 
-    <div class="section-kicker">Recent food log</div>
-    <section class="table-wrap">
+  <!-- RESULT -->
+  <section class="result-section" id="result-section">
+    <div class="result-hero">
+      <div class="score-block">
+        <div class="score-eyebrow">Overall concern</div>
+        <div class="score-num">
+          <span id="r-score-int">—</span><span class="score-denom">/10</span>
+        </div>
+        <div class="score-badge" id="r-badge">—</div>
+      </div>
+      <div class="breakdown">
+        <div class="brow">
+          <div class="brow-head">
+            <span class="brow-name">Pesticide residue</span>
+            <span class="brow-val" id="r-pest-val">—</span>
+          </div>
+          <div class="track"><div class="track-fill" id="r-pest-bar"></div></div>
+        </div>
+        <div class="brow">
+          <div class="brow-head">
+            <span class="brow-name">Microplastic exposure</span>
+            <span class="brow-val" id="r-micro-val">—</span>
+          </div>
+          <div class="track"><div class="track-fill" id="r-micro-bar"></div></div>
+        </div>
+        <div class="brow">
+          <div class="brow-head">
+            <span class="brow-name">Processing level</span>
+            <span class="brow-val" id="r-proc-val">—</span>
+          </div>
+          <div class="track"><div class="track-fill" id="r-proc-bar"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="verdict-bar" id="r-verdict"></div>
+
+    <div class="meta-grid">
+      <div class="meta-cell">
+        <div class="meta-lbl">EWG rank</div>
+        <div class="meta-val" id="r-ewg">—</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-lbl">Pesticide detail</div>
+        <div class="meta-val" id="r-pest-detail">—</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-lbl">Packaging note</div>
+        <div class="meta-val" id="r-micro-detail">—</div>
+      </div>
+      <div class="meta-cell">
+        <div class="meta-lbl">Likely origin</div>
+        <div class="meta-val" id="r-origin">—</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HISTORY -->
+  <section class="history-section">
+    <div class="section-kicker">Scan history</div>
+    <div class="table-shell">
       <table>
-        <thead><tr><th>Date</th><th>Food</th><th>Store</th><th>City</th><th>Score</th></tr></thead>
-        <tbody id="log-body"><tr><td colspan="5" class="empty">Reading exposure log…</td></tr></tbody>
+        <thead>
+          <tr>
+            <th>Date</th><th>Food</th><th>Store</th><th>City</th>
+            <th>Pesticide</th><th>Microplastic</th><th>Overall</th>
+          </tr>
+        </thead>
+        <tbody id="log-body">
+          <tr><td colspan="7" class="empty-msg">No scans yet — run one above</td></tr>
+        </tbody>
       </table>
-    </section>
+    </div>
+  </section>
 
-    <div class="section-kicker">Frequency × concern</div>
-    <section class="chart-panel"><canvas id="food-chart" aria-label="Top logged foods by average concern score"></canvas></section>
-  </main>
+</main>
 
-  <footer class="shell"><span>FoodPrint / Personal exposure ledger</span><span id="total-entries">000 entries indexed</span></footer>
+<footer class="shell">
+  <span>FoodPrint / Personal exposure ledger</span>
+  <span>EWG 2024 · USDA · Nature Medicine</span>
+</footer>
 
-  <script type="module">
-    import Chart from 'https://cdn.jsdelivr.net/npm/chart.js/+esm';
+<script>
+// ── animated grid background ──────────────────────────────────────────────────
+(function () {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, t = 0;
 
-    const $ = id => document.getElementById(id);
-    let chart;
-    const escapeHTML = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-    const scoreClass = value => value > 7 ? 'high' : value >= 4 ? 'mod' : 'low';
-    const verdict = value => value > 7 ? 'HIGH' : value >= 4 ? 'MOD' : 'LOW';
-    const fmtDate = value => {
-      if (!value) return '—';
-      const parsed = new Date(value);
-      return Number.isNaN(parsed.valueOf()) ? String(value).slice(0, 16) : parsed.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
-    };
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
 
-    function setMetric(name, value) {
-      const safe = Math.max(0, Math.min(10, Number(value) || 0));
-      $(`${name}-value`).textContent = safe.toFixed(1);
-      $(`${name}-verdict`).textContent = verdict(safe);
-      const fill = $(`${name}-fill`);
-      fill.style.setProperty('--score', safe);
-      fill.style.animation = 'none';
-      requestAnimationFrame(() => { fill.style.animation = ''; });
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    const gap = 64;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.008);
+
+    // grid lines
+    ctx.strokeStyle = `rgba(255,26,0,${0.022 + 0.012 * pulse})`;
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += gap) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += gap) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
     }
 
-    function renderTable(history) {
-      if (!history.length) {
-        $('log-body').innerHTML = '<tr><td colspan="5" class="empty">No exposure entries logged yet</td></tr>';
-        return;
-      }
-      $('log-body').innerHTML = history.map(entry => `
-        <tr>
-          <td class="date">${escapeHTML(fmtDate(entry.date))}</td>
-          <td class="food">${escapeHTML(entry.food)}</td>
-          <td>${escapeHTML(entry.store)}</td>
-          <td>${escapeHTML([entry.city,entry.state].filter(Boolean).join(', '))}</td>
-          <td class="score ${scoreClass(Number(entry.overall_score))}">${Number(entry.overall_score).toFixed(1)}</td>
-        </tr>`).join('');
-    }
+    // horizontal scan line
+    const scanY = ((t * 0.4) % (H + 60)) - 30;
+    const grad = ctx.createLinearGradient(0, scanY - 40, 0, scanY + 40);
+    grad.addColorStop(0,   'rgba(255,26,0,0)');
+    grad.addColorStop(0.5, `rgba(255,26,0,${0.06 + 0.04 * pulse})`);
+    grad.addColorStop(1,   'rgba(255,26,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, scanY - 40, W, 80);
 
-    function chartData(history) {
-      const foods = new Map();
-      history.forEach(entry => {
-        const key = entry.food || 'Unknown item';
-        const item = foods.get(key) || { count:0, total:0 };
-        item.count += 1; item.total += Number(entry.overall_score) || 0;
-        foods.set(key,item);
-      });
-      return [...foods].map(([food,item]) => ({food,count:item.count,avg:item.total/item.count}))
-        .sort((a,b) => b.count-a.count || b.avg-a.avg).slice(0,10).reverse();
-    }
+    t++;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
 
-    function renderChart(history) {
-      const data = chartData(history);
-      if (chart) chart.destroy();
-      chart = new Chart($('food-chart'), {
-        type:'bar',
-        data:{ labels:data.map(item => item.food.toUpperCase()), datasets:[{ data:data.map(item => item.avg), backgroundColor:'#ff1a00', borderWidth:0, barThickness:8 }] },
-        options:{ indexAxis:'y', maintainAspectRatio:false, responsive:true, animation:{duration:700}, plugins:{legend:{display:false},tooltip:{displayColors:false,callbacks:{label:context => ` AVG CONCERN  ${context.raw.toFixed(1)} / 10`}}}, scales:{x:{min:0,max:10,border:{display:false},grid:{color:'#171717'},ticks:{color:'#4d4d4d',font:{size:9},stepSize:2}},y:{border:{display:false},grid:{display:false},ticks:{color:'#8a8a8a',font:{size:9,weight:600},padding:12}}} }
-      });
-    }
+// ── helpers ───────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const scoreClass = v => v >= 7.5 ? 'HIGH' : v >= 4.5 ? 'MODERATE' : v >= 2.5 ? 'LOW' : 'MINIMAL';
+const fmtDate = v => {
+  if (!v) return '—';
+  const d = new Date(v);
+  return isNaN(d) ? String(v).slice(0,16) : d.toLocaleDateString('en-US',{month:'short',day:'2-digit',year:'numeric'});
+};
 
-    async function refresh() {
-      try {
-        const [historyResponse,statsResponse] = await Promise.all([fetch('/api/history',{cache:'no-store'}),fetch('/api/stats',{cache:'no-store'})]);
-        if (!historyResponse.ok || !statsResponse.ok) throw new Error('API unavailable');
-        const [history,stats] = await Promise.all([historyResponse.json(),statsResponse.json()]);
-        const latest = history[0];
-        $('latest-score').innerHTML = `${latest ? Number(latest.overall_score).toFixed(1) : '—'}<span>/10</span>`;
-        $('latest-detail').textContent = latest ? `${latest.food} · ${latest.store} · ${fmtDate(latest.date)}` : 'No logged food entries';
-        setMetric('pesticide',stats.avg_pesticide);
-        setMetric('microplastic',stats.avg_microplastic);
-        setMetric('processing',stats.avg_processing);
-        renderTable(history); renderChart(history);
-        $('total-entries').textContent = `${String(stats.total_entries).padStart(3,'0')} entries indexed`;
-        $('updated').textContent = `Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
-        $('error-banner').style.display = 'none';
-      } catch (error) {
-        console.error(error); $('error-banner').style.display = 'block';
-      }
-    }
+// animated counter
+function countUp(el, target, duration = 900) {
+  const start = performance.now();
+  function frame(now) {
+    const p = Math.min((now - start) / duration, 1);
+    const ease = 1 - Math.pow(1 - p, 3);
+    el.textContent = (target * ease).toFixed(1);
+    if (p < 1) requestAnimationFrame(frame);
+    else el.textContent = target.toFixed(1);
+  }
+  requestAnimationFrame(frame);
+}
 
-    refresh();
-    setInterval(refresh,30000);
-  </script>
+function setBreakdown(barId, valId, score) {
+  const cls = scoreClass(score);
+  const val = $( valId);
+  const bar = $(barId);
+  val.textContent = `${score.toFixed(1)}  ${cls}`;
+  val.className = `brow-val ${cls}`;
+  bar.className = `track-fill ${cls}`;
+  // trigger width animation
+  setTimeout(() => { bar.style.width = `${score * 10}%`; }, 60);
+}
+
+// ── organic toggle ────────────────────────────────────────────────────────────
+let organic = false;
+$('organic-toggle').addEventListener('click', () => {
+  organic = !organic;
+  $('organic-toggle').classList.toggle('on', organic);
+  $('organic-label').textContent = organic ? 'Yes' : 'No';
+});
+
+// ── scan progress animation ───────────────────────────────────────────────────
+let progressTimer;
+function startProgress() {
+  const fill = $('progress-fill');
+  fill.style.transition = 'none';
+  fill.style.width = '0';
+  let pct = 0;
+  progressTimer = setInterval(() => {
+    pct = Math.min(pct + Math.random() * 12, 88);
+    fill.style.transition = 'width .25s ease';
+    fill.style.width = pct + '%';
+  }, 220);
+}
+function finishProgress() {
+  clearInterval(progressTimer);
+  const fill = $('progress-fill');
+  fill.style.transition = 'width .25s ease';
+  fill.style.width = '100%';
+  setTimeout(() => {
+    fill.style.transition = 'none';
+    fill.style.width = '0';
+  }, 500);
+}
+
+// ── show result ───────────────────────────────────────────────────────────────
+function showResult(r) {
+  const overall = Number(r.overall_score) || 0;
+  const cls = scoreClass(overall);
+
+  // animated score
+  countUp($('r-score-int'), overall, 1000);
+
+  const badge = $('r-badge');
+  badge.textContent = cls;
+  badge.className = `score-badge ${cls}`;
+
+  setBreakdown('r-pest-bar',  'r-pest-val',  Number(r.pesticide_score)    || 0);
+  setBreakdown('r-micro-bar', 'r-micro-val', Number(r.microplastic_score) || 0);
+  setBreakdown('r-proc-bar',  'r-proc-val',  Number(r.processing_score)   || 0);
+
+  $('r-verdict').innerHTML      = r.verdict || '—';
+  $('r-ewg').textContent        = r.ewg_rank || 'No EWG data';
+  $('r-pest-detail').textContent  = r.pesticide_detail    || '—';
+  $('r-micro-detail').textContent = r.microplastic_detail || '—';
+
+  const origins = r.origins || [];
+  $('r-origin').textContent = origins.length
+    ? origins.slice(0, 2).map(([region, pct]) => `${region} ${pct}%`).join(' · ')
+    : '—';
+
+  const sec = $('result-section');
+  sec.classList.add('visible', 'fade-in');
+  setTimeout(() => sec.classList.remove('fade-in'), 600);
+  sec.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── render history ────────────────────────────────────────────────────────────
+function renderHistory(rows) {
+  $('entry-count').textContent = rows.length ? `${rows.length} entries` : '— entries';
+  if (!rows.length) {
+    $('log-body').innerHTML = '<tr><td colspan="7" class="empty-msg">No scans yet — run one above</td></tr>';
+    return;
+  }
+  const scClass = v => v >= 7.5 ? 'h' : v >= 4.5 ? 'm' : 'l';
+  $('log-body').innerHTML = rows.map((r,i) => `
+    <tr class="fade-in" style="animation-delay:${i*30}ms">
+      <td style="color:#333">${fmtDate(r.date)}</td>
+      <td class="food-cell">${r.food || '—'}</td>
+      <td>${r.store || '—'}</td>
+      <td>${[r.city,r.state].filter(Boolean).join(', ') || '—'}</td>
+      <td class="sc ${scClass(r.pesticide_score)}">${Number(r.pesticide_score).toFixed(1)}</td>
+      <td class="sc ${scClass(r.microplastic_score)}">${Number(r.microplastic_score).toFixed(1)}</td>
+      <td class="sc ${scClass(r.overall_score)}">${Number(r.overall_score).toFixed(1)}</td>
+    </tr>`).join('');
+}
+
+async function loadHistory() {
+  try {
+    const res = await fetch('/api/history', { cache:'no-store' });
+    if (res.ok) renderHistory(await res.json());
+  } catch {}
+}
+
+// ── scan submit ───────────────────────────────────────────────────────────────
+async function runScan() {
+  const food = $('f-food').value.trim();
+  if (!food) { $('f-food').focus(); return; }
+
+  const btn = $('scan-btn');
+  btn.disabled = true;
+  btn.textContent = 'Scanning…';
+  startProgress();
+
+  // show overlay
+  const overlay = $('scan-overlay');
+  $('overlay-food').textContent = food;
+  overlay.classList.add('active');
+
+  try {
+    const res = await fetch('/api/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        food_name: food,
+        store:     $('f-store').value.trim(),
+        city:      $('f-city').value.trim(),
+        state:     $('f-state').value.trim(),
+        country:   'USA',
+        packaging: $('f-packaging').value,
+        organic:   organic,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Scan failed');
+
+    overlay.classList.remove('active');
+    finishProgress();
+    showResult(data);
+    await loadHistory();
+  } catch (err) {
+    overlay.classList.remove('active');
+    finishProgress();
+    alert(`Scan error: ${err.message}`);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Run contamination scan';
+  }
+}
+
+$('scan-btn').addEventListener('click', runScan);
+document.querySelectorAll('.field input').forEach(el => {
+  el.addEventListener('keydown', e => { if (e.key === 'Enter') runScan(); });
+});
+
+loadHistory();
+</script>
 </body>
 </html>

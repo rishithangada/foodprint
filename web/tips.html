@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FoodPrint — Tips &amp; Guide</title>
+  <style>
+    :root {
+      --bg:#050505; --panel:#08080a; --ink:#f0f0f0; --muted:#555;
+      --line:#141414; --red:#ff1a00; --yellow:#e7b923; --green:#3ecf6a;
+      --red-glow: rgba(255,26,0,.18);
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    html,body { height:100%; }
+    body {
+      background:var(--bg); color:var(--ink);
+      font-family:'SF Mono',ui-monospace,Menlo,'Courier New',monospace;
+      -webkit-font-smoothing:antialiased; overflow-x:hidden;
+    }
+
+    /* ── canvas bg ── */
+    #bg-canvas { position:fixed; inset:0; z-index:0; opacity:.45; pointer-events:none; }
+
+    .shell { position:relative; z-index:1; width:min(1160px,calc(100% - 48px)); margin:0 auto; }
+
+    /* ── HEADER ── */
+    header {
+      position:sticky; top:0; z-index:10; height:64px;
+      display:flex; align-items:center; border-bottom:1px solid #ff1a0033;
+      background:rgba(5,5,5,.82); backdrop-filter:blur(8px);
+    }
+    .brand {
+      font-size:13px; font-weight:700; letter-spacing:.38em;
+      color:#fff; position:relative; text-decoration:none;
+    }
+    .brand::after {
+      content:''; position:absolute; bottom:-2px; left:0; width:100%; height:1px;
+      background:var(--red); transform:scaleX(0); transform-origin:left;
+      transition:transform .4s ease; animation:brand-line 2s ease .8s forwards;
+    }
+    @keyframes brand-line { to { transform:scaleX(1); } }
+
+    .header-right {
+      margin-left:auto; display:flex; align-items:center; gap:24px;
+      font-size:9px; letter-spacing:.2em; text-transform:uppercase;
+    }
+    .pulse-dot {
+      width:6px; height:6px; border-radius:50%; background:var(--red);
+      box-shadow:0 0 8px var(--red); animation:blink 1.6s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.15} }
+
+    .nav-link {
+      color:#3a3a3a; text-decoration:none; letter-spacing:.2em;
+      font-size:9px; text-transform:uppercase; transition:color .2s;
+    }
+    .nav-link:hover { color:#888; }
+    .nav-link.active { color:var(--red); }
+
+    /* ── PAGE HERO ── */
+    .page-hero {
+      padding:72px 0 52px;
+      border-bottom:1px solid #0e0e0e;
+    }
+    .section-kicker {
+      display:flex; align-items:center; gap:16px; margin-bottom:20px;
+      font-size:9px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; color:#2e2e2e;
+    }
+    .section-kicker::before { content:''; width:28px; height:1px; background:var(--red); flex-shrink:0; }
+
+    .page-title {
+      font-size:42px; font-weight:700; letter-spacing:-.03em; line-height:1.08;
+      color:#fff; margin-bottom:16px;
+    }
+    .page-title span { color:var(--red); }
+    .page-subtitle {
+      font-size:12px; color:#333; line-height:1.9; max-width:520px;
+    }
+
+    /* ── SECTIONS ── */
+    .guide-section { padding:64px 0; border-bottom:1px solid #0e0e0e; }
+    .guide-section:last-child { border-bottom:none; }
+
+    .section-header {
+      display:flex; align-items:flex-start; gap:20px; margin-bottom:40px;
+    }
+    .section-num {
+      font-size:9px; font-weight:700; letter-spacing:.3em; text-transform:uppercase;
+      color:var(--red); min-width:28px; padding-top:2px; flex-shrink:0;
+    }
+    .section-titles { display:flex; flex-direction:column; gap:6px; }
+    .section-title {
+      font-size:22px; font-weight:700; letter-spacing:-.02em; color:#fff; line-height:1.1;
+    }
+    .section-desc {
+      font-size:11px; color:#333; line-height:1.8;
+    }
+
+    /* ── PRODUCE CARDS ── */
+    .produce-grid {
+      display:grid; grid-template-columns:repeat(4,1fr); gap:1px;
+      background:#0e0e0e; border:1px solid #0e0e0e;
+    }
+    .produce-card {
+      background:var(--panel); padding:22px 20px 20px;
+      position:relative; overflow:hidden;
+      transition:background .18s;
+    }
+    .produce-card:hover { background:#0c0c0e; }
+    .produce-card::before {
+      content:''; position:absolute; inset:0; opacity:0;
+      transition:opacity .2s;
+    }
+    .produce-card:hover::before { opacity:1; }
+    .produce-card.high::before  { box-shadow:inset 0 0 28px rgba(255,26,0,.05); }
+    .produce-card.low::before   { box-shadow:inset 0 0 28px rgba(62,207,106,.04); }
+
+    .produce-rank {
+      font-size:7px; letter-spacing:.28em; text-transform:uppercase;
+      color:#1e1e1e; margin-bottom:10px; font-weight:700;
+    }
+    .produce-name {
+      font-size:14px; font-weight:700; color:#ddd; letter-spacing:-.01em;
+      margin-bottom:14px; line-height:1.2;
+    }
+    .risk-badge {
+      display:inline-block; font-size:7px; font-weight:800;
+      letter-spacing:.28em; text-transform:uppercase;
+      padding:4px 10px; border:1px solid currentColor; margin-bottom:12px;
+    }
+    .risk-badge.HIGH    { color:var(--red);    border-color:#ff1a0044; background:rgba(255,26,0,.06); }
+    .risk-badge.MODERATE{ color:var(--yellow); border-color:#e7b92344; background:rgba(231,185,35,.06); }
+    .risk-badge.MINIMAL { color:var(--green);  border-color:#3ecf6a44; background:rgba(62,207,106,.06); }
+
+    .produce-risk {
+      font-size:9px; color:#333; line-height:1.7; letter-spacing:.01em;
+    }
+    .produce-risk strong { color:#555; }
+
+    /* ── TIPS CARDS ── */
+    .tips-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:1px;
+      background:#0e0e0e; border:1px solid #0e0e0e;
+    }
+    .tip-card {
+      background:var(--panel); padding:28px 28px 26px;
+      display:flex; gap:20px; position:relative; overflow:hidden;
+      transition:background .18s;
+    }
+    .tip-card:hover { background:#0c0c0e; }
+    .tip-card::after {
+      content:''; position:absolute; left:0; top:0; bottom:0; width:2px;
+      background:var(--red); transform:scaleY(0); transform-origin:top;
+      transition:transform .3s cubic-bezier(.22,1,.36,1);
+    }
+    .tip-card:hover::after { transform:scaleY(1); }
+
+    .tip-num {
+      font-size:32px; font-weight:700; color:#111; letter-spacing:-.04em;
+      line-height:1; flex-shrink:0; width:40px; font-variant-numeric:tabular-nums;
+      transition:color .2s;
+    }
+    .tip-card:hover .tip-num { color:#1e1e1e; }
+    .tip-body { display:flex; flex-direction:column; gap:8px; }
+    .tip-title {
+      font-size:13px; font-weight:700; color:#ccc; letter-spacing:-.01em; line-height:1.3;
+    }
+    .tip-detail {
+      font-size:10px; color:#2e2e2e; line-height:1.8; letter-spacing:.02em;
+    }
+
+    /* ── PACKAGING RANK LIST ── */
+    .pkg-list {
+      border:1px solid #0e0e0e; background:var(--panel);
+    }
+    .pkg-row {
+      display:flex; align-items:center; gap:0;
+      border-bottom:1px solid #0a0a0a; position:relative; overflow:hidden;
+      transition:background .15s;
+    }
+    .pkg-row:last-child { border-bottom:none; }
+    .pkg-row:hover { background:#0c0c0e; }
+
+    .pkg-rank-col {
+      width:52px; flex-shrink:0; padding:20px 0 20px 22px;
+      font-size:9px; font-weight:700; letter-spacing:.2em;
+      color:#1c1c1c; font-variant-numeric:tabular-nums;
+    }
+    .pkg-bar-track {
+      position:absolute; left:52px; bottom:0; height:1px; right:0;
+      background:#0e0e0e; pointer-events:none;
+    }
+    .pkg-name-col {
+      flex:1; padding:20px 16px;
+      font-size:13px; font-weight:600; color:#aaa; letter-spacing:-.01em;
+    }
+    .pkg-note-col {
+      flex:2; padding:20px 16px;
+      font-size:9px; color:#2a2a2a; line-height:1.7; letter-spacing:.02em;
+    }
+    .pkg-score-col {
+      width:160px; flex-shrink:0; padding:20px 22px 20px 0;
+      display:flex; align-items:center; gap:10px; justify-content:flex-end;
+    }
+    .pkg-score-num {
+      font-size:20px; font-weight:700; letter-spacing:-.03em;
+      font-variant-numeric:tabular-nums;
+    }
+    .pkg-score-num.HIGH    { color:var(--red); }
+    .pkg-score-num.MODERATE{ color:var(--yellow); }
+    .pkg-score-num.LOW     { color:#3ecf6a88; }
+    .pkg-score-num.MINIMAL { color:#3ecf6a55; }
+    .pkg-fill {
+      position:absolute; left:0; top:0; bottom:0; z-index:0; pointer-events:none;
+      transition:width 1.2s cubic-bezier(.22,1,.36,1);
+    }
+    .pkg-fill.HIGH    { background:rgba(255,26,0,.03); }
+    .pkg-fill.MODERATE{ background:rgba(231,185,35,.025); }
+    .pkg-fill.LOW     { background:rgba(62,207,106,.018); }
+    .pkg-fill.MINIMAL { background:rgba(62,207,106,.012); }
+    .pkg-row > * { position:relative; z-index:1; }
+
+    /* ── EWG notice bar ── */
+    .notice-bar {
+      border:1px solid #0e0e0e; border-top:none;
+      background:#070709; padding:18px 24px;
+      font-size:10px; color:#282828; line-height:1.8;
+      border-left:2px solid #ff1a0033;
+    }
+
+    /* ── FOOTER ── */
+    footer {
+      border-top:1px solid #0e0e0e; padding:22px 0 32px;
+      display:flex; justify-content:space-between;
+      font-size:7px; letter-spacing:.2em; text-transform:uppercase; color:#1c1c1c;
+    }
+
+    /* ── ANIMATIONS ── */
+    .fade-in { animation:fadeIn .55s ease both; }
+    @keyframes fadeIn { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:none} }
+
+    @media(max-width:900px){
+      .produce-grid{ grid-template-columns:repeat(3,1fr); }
+      .page-title{ font-size:32px; }
+    }
+    @media(max-width:780px){
+      .shell{width:calc(100% - 24px);}
+      .produce-grid{ grid-template-columns:repeat(2,1fr); }
+      .tips-grid{ grid-template-columns:1fr; }
+      .pkg-note-col{ display:none; }
+      .page-title{ font-size:26px; }
+    }
+    @media(max-width:500px){
+      .produce-grid{ grid-template-columns:1fr 1fr; }
+      .header-right .nav-link:not(.active){ display:none; }
+    }
+  </style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+
+<header>
+  <div class="shell" style="display:flex;align-items:center;width:100%;max-width:none;padding:0 24px;">
+    <a class="brand" href="/">FOODPRINT</a>
+    <nav class="header-right">
+      <div class="pulse-dot"></div>
+      <a class="nav-link" href="/">Scanner</a>
+      <a class="nav-link" href="/news">News</a>
+      <a class="nav-link active" href="/tips">Tips</a>
+    </nav>
+  </div>
+</header>
+
+<main class="shell">
+
+  <!-- PAGE HERO -->
+  <div class="page-hero fade-in">
+    <div class="section-kicker">Contamination guide</div>
+    <h1 class="page-title">Know what you're<br><span>eating.</span></h1>
+    <p class="page-subtitle">Pesticide residues, microplastic leaching, packaging risk. Data-backed decisions to reduce your daily exposure load.</p>
+  </div>
+
+  <!-- SECTION 1 — DIRTY DOZEN -->
+  <section class="guide-section">
+    <div class="section-header">
+      <div class="section-num">01</div>
+      <div class="section-titles">
+        <h2 class="section-title">The Dirty Dozen</h2>
+        <p class="section-desc">EWG 2024 — buy these organic or avoid. Conventional samples tested positive for multiple pesticide residues, including known endocrine disruptors.</p>
+      </div>
+    </div>
+
+    <div class="produce-grid" id="dirty-grid"></div>
+    <div class="notice-bar">EWG 2024 Shopper's Guide · USDA Pesticide Data Program · Nearly 70% of non-organic Dirty Dozen samples contained pesticide residues.</div>
+  </section>
+
+  <!-- SECTION 2 — CLEAN FIFTEEN -->
+  <section class="guide-section">
+    <div class="section-header">
+      <div class="section-num">02</div>
+      <div class="section-titles">
+        <h2 class="section-title">The Clean Fifteen</h2>
+        <p class="section-desc">EWG 2024 — conventional versions of these are generally safe. Thick skins, low porosity, or minimal spray contact keeps residues minimal.</p>
+      </div>
+    </div>
+
+    <div class="produce-grid" id="clean-grid"></div>
+    <div class="notice-bar">EWG 2024 Shopper's Guide · Over 65% of Clean Fifteen samples showed zero detectable pesticide residues.</div>
+  </section>
+
+  <!-- SECTION 3 — TIPS -->
+  <section class="guide-section">
+    <div class="section-header">
+      <div class="section-num">03</div>
+      <div class="section-titles">
+        <h2 class="section-title">Reduce Your Exposure</h2>
+        <p class="section-desc">Eight evidence-based actions you can take today. Each one measurably cuts your daily contamination load.</p>
+      </div>
+    </div>
+
+    <div class="tips-grid" id="tips-grid"></div>
+  </section>
+
+  <!-- SECTION 4 — PACKAGING RANK -->
+  <section class="guide-section">
+    <div class="section-header">
+      <div class="section-num">04</div>
+      <div class="section-titles">
+        <h2 class="section-title">Packaging Risk Ranking</h2>
+        <p class="section-desc">Worst to best. Heat, acidity, and fat content all increase leaching. Score = composite microplastic + chemical migration risk on a 1–10 scale.</p>
+      </div>
+    </div>
+
+    <div class="pkg-list" id="pkg-list"></div>
+    <div class="notice-bar">Nature Medicine 2024 · FDA migration studies · Environmental Health Perspectives · Scores are composite estimates, not clinical thresholds.</div>
+  </section>
+
+</main>
+
+<footer class="shell">
+  <span>FoodPrint / Personal exposure ledger</span>
+  <span>EWG 2024 · USDA · Nature Medicine</span>
+</footer>
+
+<script>
+// ── animated grid background ──────────────────────────────────────────────────
+(function () {
+  const canvas = document.getElementById('bg-canvas');
+  const ctx = canvas.getContext('2d');
+  let W, H, t = 0;
+
+  function resize() {
+    W = canvas.width  = window.innerWidth;
+    H = canvas.height = window.innerHeight;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+
+    const gap = 64;
+    const pulse = 0.5 + 0.5 * Math.sin(t * 0.008);
+
+    // grid lines
+    ctx.strokeStyle = `rgba(255,26,0,${0.022 + 0.012 * pulse})`;
+    ctx.lineWidth = 1;
+    for (let x = 0; x < W; x += gap) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+    }
+    for (let y = 0; y < H; y += gap) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+    }
+
+    // horizontal scan line
+    const scanY = ((t * 0.4) % (H + 60)) - 30;
+    const grad = ctx.createLinearGradient(0, scanY - 40, 0, scanY + 40);
+    grad.addColorStop(0,   'rgba(255,26,0,0)');
+    grad.addColorStop(0.5, `rgba(255,26,0,${0.06 + 0.04 * pulse})`);
+    grad.addColorStop(1,   'rgba(255,26,0,0)');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, scanY - 40, W, 80);
+
+    t++;
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+// ── DATA ─────────────────────────────────────────────────────────────────────
+
+const DIRTY_DOZEN = [
+  { rank: '#1', name: 'Strawberries',              risk: '22+ pesticide residues detected on a single sample in USDA testing.' },
+  { rank: '#2', name: 'Spinach',                   risk: '76% of conventional samples contain residues; permethrin detected at high rates.' },
+  { rank: '#3', name: 'Kale / Collard / Mustard Greens', risk: 'DCPA (herbicide) detected on majority of samples — classified as possible carcinogen.' },
+  { rank: '#4', name: 'Peaches',                   risk: '99% of conventional samples tested positive for at least one pesticide residue.' },
+  { rank: '#5', name: 'Pears',                     risk: 'Organophosphate residues found on 53% of samples, including pyraclostrobin.' },
+  { rank: '#6', name: 'Nectarines',                risk: 'Five or more pesticide residues found on nearly 50% of conventional samples.' },
+  { rank: '#7', name: 'Apples',                    risk: 'Diphenylamine (DPA) applied post-harvest detected on 80%+ of samples.' },
+  { rank: '#8', name: 'Grapes',                    risk: '56 different pesticide residues detected across all grape samples tested.' },
+  { rank: '#9', name: 'Bell Peppers',              risk: 'Acephate (nerve toxin) found on 55% of conventional bell pepper samples.' },
+  { rank: '#10', name: 'Cherries',                 risk: '5 or more pesticides detected on 30%+ of samples; iprodione is a suspected carcinogen.' },
+  { rank: '#11', name: 'Blueberries',              risk: 'New entry 2024 — phosmet and malathion residues at notable concentrations.' },
+  { rank: '#12', name: 'Green Beans',              risk: 'Acephate and methamidophos — both organophosphates — detected at high frequency.' },
+];
+
+const CLEAN_FIFTEEN = [
+  { rank: '#1',  name: 'Avocados',         risk: 'Less than 2% of samples showed any detectable pesticide residue.' },
+  { rank: '#2',  name: 'Sweet Corn',       risk: 'Thick husk provides natural barrier. Nearly 0% residue rate.' },
+  { rank: '#3',  name: 'Pineapple',        risk: 'Exterior not consumed. Inner flesh residue rate under 1%.' },
+  { rank: '#4',  name: 'Onions',           risk: 'Strong antimicrobial compounds reduce need for chemical treatment.' },
+  { rank: '#5',  name: 'Papaya',           risk: '78% of samples had zero detectable pesticide residues.' },
+  { rank: '#6',  name: 'Asparagus',        risk: 'Short growing season and minimal pest pressure limits spray use.' },
+  { rank: '#7',  name: 'Honeydew Melon',   risk: 'Thick rind barrier keeps inner flesh residue-free in most testing.' },
+  { rank: '#8',  name: 'Kiwi',             risk: 'Peeled skin removes most surface residues. Low concentration detected.' },
+  { rank: '#9',  name: 'Cabbage',          risk: 'Outer leaves discarded. Inner leaves show consistently low residue.' },
+  { rank: '#10', name: 'Mushrooms',        risk: 'Grown indoors in controlled environments with minimal pesticide use.' },
+  { rank: '#11', name: 'Mangoes',          risk: 'Thick skin not consumed. Less than 12% of samples had residues.' },
+  { rank: '#12', name: 'Sweet Peas (frozen)', risk: 'Frozen processing reduces surface residues significantly.' },
+  { rank: '#13', name: 'Watermelon',       risk: 'Rind discarded. Inner flesh tests nearly clean across all samples.' },
+  { rank: '#14', name: 'Carrots',          risk: 'Peeling removes the majority of surface pesticide residues.' },
+  { rank: '#15', name: 'Sweet Potatoes',   risk: 'One of the safest root vegetables — very low residue concentrations.' },
+];
+
+const TIPS = [
+  {
+    num: '01',
+    title: 'Wash produce under running water for 30+ seconds',
+    detail: 'Even organic produce. Running water removes bacteria, soil, and reduces surface pesticide residue. Scrub firm produce with a brush. Skip the soap — it leaves its own residue.',
+  },
+  {
+    num: '02',
+    title: 'Never microwave food in plastic containers',
+    detail: 'Heat accelerates chemical migration from plastic into food. Even BPA-free plastic leaches hormone-disrupting substitutes (BPS, BPF) when heated. Use glass or ceramic.',
+  },
+  {
+    num: '03',
+    title: 'Replace plastic wrap with glass or beeswax wrap',
+    detail: 'Plastic wrap pressed against fatty or acidic food leaches plasticizers (DEHA, DEHP) into it. Glass containers with lids or beeswax wraps eliminate this exposure pathway entirely.',
+  },
+  {
+    num: '04',
+    title: 'Use a reverse osmosis filter for drinking water',
+    detail: 'RO filtration removes PFAS, nitrates, heavy metals, chlorine byproducts, and microplastics at >95% efficiency. Standard carbon filters miss PFAS and most microplastics.',
+  },
+  {
+    num: '05',
+    title: 'Buy organic specifically for Dirty Dozen items',
+    detail: 'Prioritizing organic purchases on just the EWG Dirty Dozen reduces your annual pesticide exposure load by an estimated 80%+ without paying premium across every category.',
+  },
+  {
+    num: '06',
+    title: 'Avoid styrofoam containers entirely',
+    detail: 'Expanded polystyrene (styrofoam) leaches styrene — a probable carcinogen — into food, especially hot, fatty, or acidic content. It is the highest-risk common food packaging material.',
+  },
+  {
+    num: '07',
+    title: 'Let canned food cool before eating (BPA lining risk)',
+    detail: 'BPA and its replacements in epoxy can linings leach more rapidly into hot food. Decant into a glass or ceramic container before heating, or choose BPA-free labeled cans.',
+  },
+  {
+    num: '08',
+    title: 'Peel thick-skinned produce to cut surface residue ~50%',
+    detail: 'Peeling cucumbers, apples, pears, and potatoes removes the outer layer where most pesticide residue concentrates. Trade-off: you lose some fiber and vitamins in the skin.',
+  },
+];
+
+const PACKAGING = [
+  { rank: 1, name: 'Styrofoam',       score: 9.0, cls: 'HIGH',     note: 'Expanded polystyrene leaches styrene into hot and fatty food. No safe temperature threshold identified. Banned in several jurisdictions.' },
+  { rank: 2, name: 'Plastic wrap',    score: 8.5, cls: 'HIGH',     note: 'DEHA and DEHP plasticizers migrate rapidly into fatty food on contact. Direct wrapping of cheese or meat is highest risk.' },
+  { rank: 3, name: 'Plastic clamshell', score: 8.0, cls: 'HIGH',   note: 'PET (often #1) or PS (#6) — heat and acid accelerate antimony and styrene leaching. Avoid microwaving entirely.' },
+  { rank: 4, name: 'Plastic bag',     score: 7.5, cls: 'HIGH',     note: 'LDPE and LLDPE bags release microplastic particles and chemical additives over time, especially under heat or UV exposure.' },
+  { rank: 5, name: 'Tetra Pak',       score: 5.0, cls: 'MODERATE', note: 'Multi-layer laminate (paper, PE, aluminum). Inner PE layer contacts food — low migration at room temp, moderate when hot.' },
+  { rank: 6, name: 'Can (BPA lining)', score: 4.0, cls: 'MODERATE', note: 'Epoxy lining contains BPA or BPA substitutes. Migration increases with acidic content (tomatoes) and heat. Choose BPA-free labeled cans.' },
+  { rank: 7, name: 'Cardboard',       score: 2.5, cls: 'LOW',      note: 'Mineral oils from recycled cardboard can migrate into dry food. Direct-contact cardboard is a known EFSA concern for cereals and pasta.' },
+  { rank: 8, name: 'Paper bag',       score: 1.5, cls: 'MINIMAL',  note: 'Unbleached, uncoated paper is among the safest packaging materials. Chlorine-bleached variants have trace dioxin risk.' },
+  { rank: 9, name: 'Glass',           score: 1.0, cls: 'MINIMAL',  note: 'Chemically inert. Zero migration into food at any temperature. Preferred by FDA and EFSA for food contact. Ideal long-term storage.' },
+];
+
+// ── RENDER DIRTY DOZEN ────────────────────────────────────────────────────────
+const dirtyGrid = document.getElementById('dirty-grid');
+DIRTY_DOZEN.forEach((item, i) => {
+  const card = document.createElement('div');
+  card.className = 'produce-card high fade-in';
+  card.style.animationDelay = `${i * 45}ms`;
+  card.innerHTML = `
+    <div class="produce-rank">${item.rank}</div>
+    <div class="produce-name">${item.name}</div>
+    <span class="risk-badge HIGH">HIGH</span>
+    <div class="produce-risk">${item.risk}</div>
+  `;
+  dirtyGrid.appendChild(card);
+});
+
+// ── RENDER CLEAN FIFTEEN ──────────────────────────────────────────────────────
+const cleanGrid = document.getElementById('clean-grid');
+CLEAN_FIFTEEN.forEach((item, i) => {
+  const card = document.createElement('div');
+  card.className = 'produce-card low fade-in';
+  card.style.animationDelay = `${i * 40}ms`;
+  card.innerHTML = `
+    <div class="produce-rank">${item.rank}</div>
+    <div class="produce-name">${item.name}</div>
+    <span class="risk-badge MINIMAL">MINIMAL</span>
+    <div class="produce-risk">${item.risk}</div>
+  `;
+  cleanGrid.appendChild(card);
+});
+
+// ── RENDER TIPS ───────────────────────────────────────────────────────────────
+const tipsGrid = document.getElementById('tips-grid');
+TIPS.forEach((tip, i) => {
+  const card = document.createElement('div');
+  card.className = 'tip-card fade-in';
+  card.style.animationDelay = `${i * 55}ms`;
+  card.innerHTML = `
+    <div class="tip-num">${tip.num}</div>
+    <div class="tip-body">
+      <div class="tip-title">${tip.title}</div>
+      <div class="tip-detail">${tip.detail}</div>
+    </div>
+  `;
+  tipsGrid.appendChild(card);
+});
+
+// ── RENDER PACKAGING LIST ─────────────────────────────────────────────────────
+const pkgList = document.getElementById('pkg-list');
+const maxScore = 10;
+
+PACKAGING.forEach((pkg, i) => {
+  const row = document.createElement('div');
+  row.className = 'pkg-row fade-in';
+  row.style.animationDelay = `${i * 60}ms`;
+  row.innerHTML = `
+    <div class="pkg-fill ${pkg.cls}" style="width:0" data-width="${(pkg.score / maxScore) * 100}%"></div>
+    <div class="pkg-rank-col">${String(pkg.rank).padStart(2,'0')}</div>
+    <div class="pkg-name-col">${pkg.name}</div>
+    <div class="pkg-note-col">${pkg.note}</div>
+    <div class="pkg-score-col">
+      <span class="risk-badge ${pkg.cls}">${pkg.cls}</span>
+      <span class="pkg-score-num ${pkg.cls}">${pkg.score.toFixed(1)}</span>
+    </div>
+  `;
+  pkgList.appendChild(row);
+});
+
+// animate pkg fill bars on load
+requestAnimationFrame(() => {
+  setTimeout(() => {
+    document.querySelectorAll('.pkg-fill').forEach(el => {
+      el.style.transition = 'width 1.2s cubic-bezier(.22,1,.36,1)';
+      el.style.width = el.dataset.width;
+    });
+  }, 200);
+});
+</script>
+</body>
+</html>

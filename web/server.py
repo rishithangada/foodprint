@@ -4,139 +4,90 @@
 from __future__ import annotations
 
 import json
+import sys
 import mimetypes
 import sqlite3
+from dataclasses import asdict
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from engine.scorer import score_food
+from engine.origin import detect_origin
+from engine.database import save_entry, init_db, get_history, get_stats
 
 HOST = "localhost"
 PORT = 9999
 WEB_DIR = Path(__file__).resolve().parent
-DB_PATH = WEB_DIR.parent / "logs" / "food_log.db"
 
-FIELD_ALIASES = {
-    "id": ("id", "entry_id"),
-    "date": ("created_at", "timestamp", "logged_at", "date", "datetime", "time"),
-    "food": ("food_name", "food", "name", "item"),
-    "store": ("store", "store_name", "retailer"),
-    "city": ("city", "location_city"),
-    "state": ("state", "region"),
-    "pesticide_score": ("pesticide_score", "pesticide", "pesticide_risk"),
-    "microplastic_score": ("microplastic_score", "microplastic", "microplastic_risk"),
-    "processing_score": ("processing_score", "processing", "processing_risk"),
-    "overall_score": ("overall_score", "score", "overall", "concern_score"),
-}
+PACKAGING_OPTIONS = [
+    "plastic wrap", "plastic clamshell", "plastic bag", "plastic bottle",
+    "plastic tray", "styrofoam", "can", "tetra pak", "cardboard",
+    "glass", "paper bag", "none", "unknown",
+]
 
 
-def _json_value(value):
-    if isinstance(value, bytes):
-        return value.decode("utf-8", errors="replace")
-    return value
+def _read_body(handler) -> dict:
+    length = int(handler.headers.get("Content-Length", 0))
+    raw = handler.rfile.read(length)
+    return json.loads(raw)
 
 
-def _find_log_table(connection: sqlite3.Connection) -> tuple[str, list[str]] | None:
-    tables = [
-        row[0]
-        for row in connection.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' "
-            "AND name NOT LIKE 'sqlite_%' ORDER BY name"
-        )
-    ]
-    candidates = []
-    for table in tables:
-        quoted = table.replace('"', '""')
-        columns = [row[1] for row in connection.execute(f'PRAGMA table_info("{quoted}")')]
-        lowered = {column.lower() for column in columns}
-        confidence = sum(
-            1 for key in ("food", "overall_score", "pesticide_score")
-            if any(alias in lowered for alias in FIELD_ALIASES[key])
-        )
-        candidates.append((confidence, table, columns))
-    if not candidates:
-        return None
-    _, table, columns = max(candidates, key=lambda item: item[0])
-    return table, columns
+def api_scan(payload: dict) -> dict:
+    food_name  = str(payload.get("food_name", "")).strip()
+    store      = str(payload.get("store", "")).strip()
+    city       = str(payload.get("city", "")).strip()
+    state      = str(payload.get("state", "")).strip()
+    country    = str(payload.get("country", "USA")).strip() or "USA"
+    packaging  = str(payload.get("packaging", "unknown")).strip()
+    organic    = bool(payload.get("organic", False))
+
+    if not food_name:
+        raise ValueError("food_name is required")
+
+    scored  = score_food(food_name, store, city, state, country, packaging, organic)
+    origins = detect_origin(food_name, store, city=city, state=state)
+    result  = asdict(scored)
+    result["origins"] = origins
+
+    origin_primary = origins[0][0] if origins else "Unknown"
+    save_entry({**result, "origin_primary": origin_primary})
+
+    return result
 
 
-def _column_map(columns: list[str]) -> dict[str, str | None]:
-    actual = {column.lower(): column for column in columns}
+def api_history() -> list:
+    rows = get_history(50)
+    out = []
+    for r in rows:
+        out.append({
+            "id":               r.get("id"),
+            "date":             r.get("logged_at", ""),
+            "food":             r.get("food_name", ""),
+            "store":            r.get("store", ""),
+            "city":             r.get("city", ""),
+            "state":            r.get("state", ""),
+            "pesticide_score":  round(float(r.get("pesticide_score") or 0), 1),
+            "microplastic_score": round(float(r.get("microplastic_score") or 0), 1),
+            "processing_score": round(float(r.get("processing_score") or 0), 1),
+            "overall_score":    round(float(r.get("overall_score") or 0), 1),
+        })
+    return out
+
+
+def api_stats_out() -> dict:
+    s = get_stats()
     return {
-        field: next((actual[alias] for alias in aliases if alias in actual), None)
-        for field, aliases in FIELD_ALIASES.items()
-    }
-
-
-def read_entries(limit: int | None = 50) -> list[dict]:
-    if not DB_PATH.is_file():
-        return []
-
-    connection = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True, timeout=2)
-    connection.row_factory = sqlite3.Row
-    try:
-        discovered = _find_log_table(connection)
-        if not discovered:
-            return []
-        table, columns = discovered
-        mapping = _column_map(columns)
-        order_column = mapping["date"] or mapping["id"] or "rowid"
-        quoted_table = table.replace('"', '""')
-        quoted_order = order_column.replace('"', '""')
-        sql = f'SELECT * FROM "{quoted_table}" ORDER BY "{quoted_order}" DESC'
-        params: tuple[int, ...] = ()
-        if limit is not None:
-            sql += " LIMIT ?"
-            params = (limit,)
-        rows = connection.execute(sql, params).fetchall()
-
-        entries = []
-        for row in rows:
-            entry = {}
-            for field, column in mapping.items():
-                value = row[column] if column else None
-                entry[field] = _json_value(value)
-            for score in ("pesticide_score", "microplastic_score", "processing_score", "overall_score"):
-                try:
-                    entry[score] = round(float(entry[score]), 1)
-                except (TypeError, ValueError):
-                    entry[score] = 0.0
-            if not mapping["processing_score"]:
-                # scorer.py weights overall as 45% pesticide, 35% microplastic,
-                # and 20% processing. Older log schemas did not persist processing.
-                inferred = (
-                    entry["overall_score"]
-                    - entry["pesticide_score"] * 0.45
-                    - entry["microplastic_score"] * 0.35
-                ) / 0.20
-                entry["processing_score"] = round(max(0.0, min(10.0, inferred)), 1)
-            entry["food"] = entry["food"] or "Unknown item"
-            entry["store"] = entry["store"] or "Unknown"
-            entry["city"] = entry["city"] or "—"
-            entries.append(entry)
-        return entries
-    finally:
-        connection.close()
-
-
-def calculate_stats(entries: list[dict]) -> dict:
-    count = len(entries)
-
-    def average(field: str) -> float:
-        return round(sum(entry[field] for entry in entries) / count, 1) if count else 0.0
-
-    most_concerning = sorted(entries, key=lambda entry: entry["overall_score"], reverse=True)[:3]
-    return {
-        "avg_pesticide": average("pesticide_score"),
-        "avg_microplastic": average("microplastic_score"),
-        "avg_processing": average("processing_score"),
-        "avg_overall": average("overall_score"),
-        "total_entries": count,
-        "most_concerning": [
-            {"food": entry["food"], "score": entry["overall_score"]}
-            for entry in most_concerning
-        ],
+        "avg_pesticide":   round(float(s.get("avg_pesticide_score") or 0), 1),
+        "avg_microplastic": round(float(s.get("avg_microplastic_score") or 0), 1),
+        "avg_processing":  round(float(s.get("avg_processing_score") or 0), 1),
+        "avg_overall":     round(float(s.get("avg_overall_score") or 0), 1),
+        "total_entries":   s.get("total_entries", 0),
+        "most_concerning": s.get("most_concerning", []),
     }
 
 
@@ -144,8 +95,8 @@ class FoodPrintHandler(SimpleHTTPRequestHandler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(WEB_DIR), **kwargs)
 
-    def log_message(self, format: str, *args) -> None:
-        print(f"[{self.log_date_time_string()}] {format % args}")
+    def log_message(self, fmt: str, *args) -> None:
+        print(f"[{self.log_date_time_string()}] {fmt % args}")
 
     def _send_json(self, payload, status: HTTPStatus = HTTPStatus.OK) -> None:
         encoded = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -160,20 +111,44 @@ class FoodPrintHandler(SimpleHTTPRequestHandler):
         path = urlparse(self.path).path
         try:
             if path == "/api/history":
-                self._send_json(read_entries(50))
+                self._send_json(api_history())
                 return
             if path == "/api/stats":
-                self._send_json(calculate_stats(read_entries(None)))
+                self._send_json(api_stats_out())
                 return
-        except (sqlite3.Error, OSError) as exc:
-            self._send_json({"error": "Unable to read the food log", "detail": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            if path == "/api/packaging-options":
+                self._send_json(PACKAGING_OPTIONS)
+                return
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
             return
 
         if path == "/":
             self.path = "/index.html"
+        elif path == "/news":
+            self.path = "/news.html"
+        elif path == "/tips":
+            self.path = "/tips.html"
         super().do_GET()
 
+    def do_POST(self) -> None:
+        path = urlparse(self.path).path
+        try:
+            if path == "/api/scan":
+                payload = _read_body(self)
+                result  = api_scan(payload)
+                self._send_json(result)
+                return
+        except ValueError as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
+            return
+        except Exception as exc:
+            self._send_json({"error": str(exc)}, HTTPStatus.INTERNAL_SERVER_ERROR)
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
     def end_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
         if self.path.endswith(".html"):
             self.send_header("Cache-Control", "no-store")
         super().end_headers()
@@ -181,12 +156,12 @@ class FoodPrintHandler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     mimetypes.add_type("text/javascript", ".js")
+    init_db()
     server = ThreadingHTTPServer((HOST, PORT), FoodPrintHandler)
-    print(f"FoodPrint dashboard: http://{HOST}:{PORT}")
-    print(f"Database: {DB_PATH}")
+    print(f"FoodPrint dashboard → http://{HOST}:{PORT}")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
-        print("\nStopping FoodPrint.")
+        print("\nStopped.")
     finally:
         server.server_close()
