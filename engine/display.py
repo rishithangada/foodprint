@@ -5,6 +5,7 @@ Rich terminal display helpers for FoodPrint.
 from __future__ import annotations
 
 import time
+from textwrap import shorten, wrap
 from typing import Any, Iterable
 
 from rich import box
@@ -50,7 +51,7 @@ def _risk_bar(score: float, width: int = 24) -> Text:
     return bar
 
 
-def _risk_row(title: str, score: float, finding: str) -> Table:
+def _risk_row(title: str, score: float, finding: str) -> Group:
     row = Table.grid(expand=True)
     row.add_column(ratio=2)
     row.add_column(ratio=3)
@@ -60,8 +61,8 @@ def _risk_row(title: str, score: float, finding: str) -> Table:
         _risk_bar(score),
         Text(f"{score:.1f}  {_risk_name(score)}", style=_risk_color(score)),
     )
-    row.add_row("", Text(finding, style="dim white"), "")
-    return row
+    detail = Text(shorten(finding, width=66, placeholder="..."), style="dim white")
+    return Group(row, detail)
 
 
 def _format_origins(origins: Iterable[Any]) -> str:
@@ -82,6 +83,18 @@ def _format_origins(origins: Iterable[Any]) -> str:
         formatted.append(f"{country} {pct}%")
 
     return " · ".join(formatted) if formatted else "Unknown origin probability"
+
+
+def _two_line_verdict(verdict: str, width: int = 62) -> str:
+    compact = " ".join(verdict.split())
+    lines = wrap(compact, width=width)
+    if len(lines) <= 2:
+        return "\n".join(lines)
+
+    first = lines[0]
+    remaining = " ".join(lines[1:])
+    second = shorten(remaining, width=width, placeholder="...")
+    return f"{first}\n{second}"
 
 
 def run_loading_sequence() -> None:
@@ -128,11 +141,7 @@ def print_result(result_dict: dict[str, Any]) -> None:
     )
 
     verdict = str(_value(result_dict, "verdict", default="No verdict generated."))
-    verdict_lines = " ".join(verdict.split())
-    if len(verdict_lines) > 96:
-        midpoint = verdict_lines.rfind(" ", 0, 96)
-        midpoint = midpoint if midpoint > 0 else 96
-        verdict_lines = f"{verdict_lines[:midpoint]}\n{verdict_lines[midpoint + 1:]}"
+    verdict_lines = _two_line_verdict(verdict)
 
     body = Group(
         header,

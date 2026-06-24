@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import mimetypes
 import sqlite3
+import urllib.request
+import urllib.error
 from dataclasses import asdict
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -16,9 +19,85 @@ from urllib.parse import urlparse
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from dotenv import load_dotenv
+load_dotenv(ROOT / ".env")
+
 from engine.scorer import score_food
 from engine.origin import detect_origin
 from engine.database import save_entry, init_db, get_history, get_stats
+
+OPENROUTER_KEY = os.getenv("OPENROUTER_API_KEY", "")
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+OPENROUTER_MODEL = "meta-llama/llama-3.1-8b-instruct:free"
+
+
+def _llm_enrich(result: dict, inputs: dict) -> dict:
+    """Call OpenRouter to generate specific verdict + details. Falls back silently."""
+    if not OPENROUTER_KEY:
+        return result
+
+    food     = inputs["food_name"]
+    store    = inputs["store"] or "an unspecified store"
+    city     = inputs["city"] or "unknown city"
+    state    = inputs["state"] or "unknown state"
+    pkg      = inputs["packaging"]
+    organic  = "organic" if inputs["organic"] else "conventional"
+
+    prompt = f"""You are a food contamination analyst. Be direct, specific, and practical.
+
+Food scanned: {food} ({organic})
+Purchased at: {store}, {city}, {state}
+Packaging: {pkg}
+Scores (0-10, higher = worse):
+  Pesticide residue: {result['pesticide_score']} ({result['pesticide_label']})
+  Microplastic exposure: {result['microplastic_score']} ({result['microplastic_label']})
+  Processing level: {result['processing_score']} ({result['processing_label']})
+  Overall concern: {result['overall_score']} ({result['overall_label']})
+
+Write exactly 3 outputs, each on its own line, prefixed as shown:
+VERDICT: [2-3 sentences. Specific to this exact food, store, city, and packaging. Actionable. No generic advice.]
+PESTICIDE: [1-2 sentences specific to {food} pesticide reality and what {store} customers should know.]
+PACKAGING: [1-2 sentences specific to {food} in {pkg} — what exactly is the risk and what to do.]
+
+Be blunt. Reference the specific store, city, and food by name."""
+
+    payload = json.dumps({
+        "model": OPENROUTER_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 320,
+        "temperature": 0.4,
+    }).encode()
+
+    req = urllib.request.Request(
+        OPENROUTER_URL,
+        data=payload,
+        headers={
+            "Authorization": f"Bearer {OPENROUTER_KEY}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:9999",
+            "X-Title": "FoodOverkill",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            data = json.loads(resp.read())
+        text = data["choices"][0]["message"]["content"].strip()
+
+        for line in text.splitlines():
+            line = line.strip()
+            if line.startswith("VERDICT:"):
+                result["verdict"] = line[8:].strip()
+            elif line.startswith("PESTICIDE:"):
+                result["pesticide_detail"] = line[10:].strip()
+            elif line.startswith("PACKAGING:"):
+                result["microplastic_detail"] = line[10:].strip()
+
+    except Exception as e:
+        print(f"[OpenRouter] fallback to hardcoded: {e}")
+
+    return result
 
 HOST = "localhost"
 PORT = 9999
@@ -53,6 +132,12 @@ def api_scan(payload: dict) -> dict:
     origins = detect_origin(food_name, store, city=city, state=state)
     result  = asdict(scored)
     result["origins"] = origins
+
+    # Enrich with LLM if OpenRouter key is available
+    result = _llm_enrich(result, {
+        "food_name": food_name, "store": store, "city": city,
+        "state": state, "packaging": packaging, "organic": organic,
+    })
 
     origin_primary = origins[0][0] if origins else "Unknown"
     save_entry({**result, "origin_primary": origin_primary})
