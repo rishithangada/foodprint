@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>FoodPrint — Contamination Intelligence</title>
+  <style>
+    :root { --bg:#060606; --panel:#090909; --ink:#f2f2f2; --muted:#717171; --line:#181818; --red:#ff1a00; --yellow:#e7b923; --green:#5dbb63; }
+    * { box-sizing:border-box; }
+    html { background:var(--bg); }
+    body { margin:0; min-width:320px; background:var(--bg); color:var(--ink); font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+    button,canvas { font:inherit; }
+    .shell { width:min(1320px,calc(100% - 48px)); margin:0 auto; }
+    header { height:67px; display:flex; align-items:center; border-bottom:1px solid var(--red); }
+    .brand { font-size:11px; font-weight:700; letter-spacing:.36em; }
+    .header-meta { margin-left:auto; display:flex; align-items:center; gap:13px; color:#5d5d5d; font-size:9px; letter-spacing:.16em; text-transform:uppercase; }
+    .pulse { width:5px; height:5px; background:var(--red); animation:pulse 1.8s infinite; }
+    .hero { min-height:455px; display:grid; place-items:center; position:relative; overflow:hidden; border-inline:1px solid #0e0e0e; background:radial-gradient(circle at 50% 47%,rgba(255,26,0,.09) 0,rgba(255,26,0,.025) 25%,transparent 57%); }
+    .hero::before,.hero::after { content:""; position:absolute; background:#111; }
+    .hero::before { width:1px; height:100%; left:50%; }
+    .hero::after { height:1px; width:100%; top:50%; }
+    .hero-content { position:relative; z-index:1; text-align:center; background:var(--bg); padding:26px 62px; }
+    .eyebrow { color:var(--red); font-size:9px; font-weight:700; letter-spacing:.3em; text-transform:uppercase; }
+    .hero-score { font-size:clamp(82px,11vw,140px); line-height:.82; font-weight:650; letter-spacing:-.08em; margin:25px 0 21px; font-variant-numeric:tabular-nums; }
+    .hero-score span { color:#3b3b3b; font-size:.26em; letter-spacing:-.02em; margin-left:10px; }
+    .hero-detail { color:#5e5e5e; font-size:9px; letter-spacing:.18em; text-transform:uppercase; }
+    .section-kicker { display:flex; align-items:center; gap:14px; margin:52px 0 18px; color:#777; font-size:9px; letter-spacing:.22em; text-transform:uppercase; }
+    .section-kicker::before { content:""; width:24px; height:1px; background:var(--red); }
+    .metrics { display:grid; grid-template-columns:repeat(3,1fr); border:1px solid var(--line); }
+    .metric { min-height:178px; padding:25px 26px 23px; border-right:1px solid var(--line); background:var(--panel); }
+    .metric:last-child { border:0; }
+    .metric-head { display:flex; justify-content:space-between; color:#878787; font-size:9px; font-weight:650; letter-spacing:.2em; }
+    .metric-index { color:#343434; }
+    .metric-value { margin:27px 0 22px; display:flex; align-items:baseline; gap:10px; font-size:43px; line-height:1; letter-spacing:-.055em; font-variant-numeric:tabular-nums; }
+    .verdict { color:var(--red); font-size:9px; font-weight:700; letter-spacing:.18em; }
+    .track { height:2px; background:#252525; overflow:hidden; }
+    .fill { display:block; width:calc(var(--score,0) * 10%); height:100%; background:var(--red); transform-origin:left; animation:reveal 1.15s cubic-bezier(.22,1,.36,1) both; }
+    .table-wrap { border:1px solid var(--line); overflow-x:auto; background:var(--panel); }
+    table { width:100%; border-collapse:collapse; min-width:760px; }
+    th { height:45px; color:#545454; text-align:left; font-size:8px; font-weight:650; letter-spacing:.22em; text-transform:uppercase; border-bottom:1px solid var(--line); }
+    td { height:56px; color:#999; font-size:12px; border-bottom:1px solid #121212; }
+    th,td { padding:0 18px; }
+    tbody tr:last-child td { border-bottom:0; }
+    tbody tr:hover { background:#0d0d0d; }
+    td.food { color:#e7e7e7; font-weight:560; }
+    .date { color:#555; font-size:10px; font-variant-numeric:tabular-nums; }
+    .score { font-weight:700; font-variant-numeric:tabular-nums; }
+    .score.high { color:var(--red); }.score.mod { color:var(--yellow); }.score.low { color:var(--green); }
+    .empty { padding:70px 20px; text-align:center; color:#444; font-size:10px; letter-spacing:.16em; text-transform:uppercase; }
+    .chart-panel { border:1px solid var(--line); background:var(--panel); padding:28px; height:405px; margin-bottom:60px; }
+    footer { border-top:1px solid var(--line); padding:25px 0 34px; display:flex; justify-content:space-between; color:#3e3e3e; font-size:8px; letter-spacing:.18em; text-transform:uppercase; }
+    .error-banner { display:none; margin-top:18px; border:1px solid #4a0b05; padding:12px 15px; color:#bc493d; font-size:10px; letter-spacing:.08em; }
+    @keyframes reveal { from { transform:scaleX(0); } to { transform:scaleX(1); } }
+    @keyframes pulse { 50% { opacity:.2; } }
+    @media (max-width:760px) {
+      .shell { width:min(100% - 24px,1320px); }
+      .hero { min-height:360px; }.hero-content { padding:25px 22px; }
+      .metrics { grid-template-columns:1fr; }.metric { border-right:0; border-bottom:1px solid var(--line); }
+      .metric:last-child { border-bottom:0; }.section-kicker { margin-top:38px; }
+      .chart-panel { padding:18px 12px; height:375px; } footer { gap:20px; }
+      .header-meta span:last-child { display:none; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell">
+    <div class="brand">FOODPRINT</div>
+    <div class="header-meta"><i class="pulse"></i><span>Live contamination index</span><span id="updated">Awaiting data</span></div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-content">
+        <div class="eyebrow">Contamination concern</div>
+        <div class="hero-score" id="latest-score">—<span>/10</span></div>
+        <div class="hero-detail" id="latest-detail">No logged food entries</div>
+      </div>
+    </section>
+
+    <div class="error-banner" id="error-banner">Data connection interrupted. Retrying automatically.</div>
+    <div class="section-kicker">Current exposure profile</div>
+    <section class="metrics">
+      <article class="metric">
+        <div class="metric-head"><span>PESTICIDE</span><span class="metric-index">01</span></div>
+        <div class="metric-value"><span id="pesticide-value">0.0</span><b class="verdict" id="pesticide-verdict">LOW</b></div>
+        <div class="track"><i class="fill" id="pesticide-fill"></i></div>
+      </article>
+      <article class="metric">
+        <div class="metric-head"><span>MICROPLASTIC</span><span class="metric-index">02</span></div>
+        <div class="metric-value"><span id="microplastic-value">0.0</span><b class="verdict" id="microplastic-verdict">LOW</b></div>
+        <div class="track"><i class="fill" id="microplastic-fill"></i></div>
+      </article>
+      <article class="metric">
+        <div class="metric-head"><span>PROCESSING</span><span class="metric-index">03</span></div>
+        <div class="metric-value"><span id="processing-value">0.0</span><b class="verdict" id="processing-verdict">LOW</b></div>
+        <div class="track"><i class="fill" id="processing-fill"></i></div>
+      </article>
+    </section>
+
+    <div class="section-kicker">Recent food log</div>
+    <section class="table-wrap">
+      <table>
+        <thead><tr><th>Date</th><th>Food</th><th>Store</th><th>City</th><th>Score</th></tr></thead>
+        <tbody id="log-body"><tr><td colspan="5" class="empty">Reading exposure log…</td></tr></tbody>
+      </table>
+    </section>
+
+    <div class="section-kicker">Frequency × concern</div>
+    <section class="chart-panel"><canvas id="food-chart" aria-label="Top logged foods by average concern score"></canvas></section>
+  </main>
+
+  <footer class="shell"><span>FoodPrint / Personal exposure ledger</span><span id="total-entries">000 entries indexed</span></footer>
+
+  <script type="module">
+    import Chart from 'https://cdn.jsdelivr.net/npm/chart.js/+esm';
+
+    const $ = id => document.getElementById(id);
+    let chart;
+    const escapeHTML = value => String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    const scoreClass = value => value > 7 ? 'high' : value >= 4 ? 'mod' : 'low';
+    const verdict = value => value > 7 ? 'HIGH' : value >= 4 ? 'MOD' : 'LOW';
+    const fmtDate = value => {
+      if (!value) return '—';
+      const parsed = new Date(value);
+      return Number.isNaN(parsed.valueOf()) ? String(value).slice(0, 16) : parsed.toLocaleDateString(undefined,{year:'numeric',month:'short',day:'2-digit'});
+    };
+
+    function setMetric(name, value) {
+      const safe = Math.max(0, Math.min(10, Number(value) || 0));
+      $(`${name}-value`).textContent = safe.toFixed(1);
+      $(`${name}-verdict`).textContent = verdict(safe);
+      const fill = $(`${name}-fill`);
+      fill.style.setProperty('--score', safe);
+      fill.style.animation = 'none';
+      requestAnimationFrame(() => { fill.style.animation = ''; });
+    }
+
+    function renderTable(history) {
+      if (!history.length) {
+        $('log-body').innerHTML = '<tr><td colspan="5" class="empty">No exposure entries logged yet</td></tr>';
+        return;
+      }
+      $('log-body').innerHTML = history.map(entry => `
+        <tr>
+          <td class="date">${escapeHTML(fmtDate(entry.date))}</td>
+          <td class="food">${escapeHTML(entry.food)}</td>
+          <td>${escapeHTML(entry.store)}</td>
+          <td>${escapeHTML([entry.city,entry.state].filter(Boolean).join(', '))}</td>
+          <td class="score ${scoreClass(Number(entry.overall_score))}">${Number(entry.overall_score).toFixed(1)}</td>
+        </tr>`).join('');
+    }
+
+    function chartData(history) {
+      const foods = new Map();
+      history.forEach(entry => {
+        const key = entry.food || 'Unknown item';
+        const item = foods.get(key) || { count:0, total:0 };
+        item.count += 1; item.total += Number(entry.overall_score) || 0;
+        foods.set(key,item);
+      });
+      return [...foods].map(([food,item]) => ({food,count:item.count,avg:item.total/item.count}))
+        .sort((a,b) => b.count-a.count || b.avg-a.avg).slice(0,10).reverse();
+    }
+
+    function renderChart(history) {
+      const data = chartData(history);
+      if (chart) chart.destroy();
+      chart = new Chart($('food-chart'), {
+        type:'bar',
+        data:{ labels:data.map(item => item.food.toUpperCase()), datasets:[{ data:data.map(item => item.avg), backgroundColor:'#ff1a00', borderWidth:0, barThickness:8 }] },
+        options:{ indexAxis:'y', maintainAspectRatio:false, responsive:true, animation:{duration:700}, plugins:{legend:{display:false},tooltip:{displayColors:false,callbacks:{label:context => ` AVG CONCERN  ${context.raw.toFixed(1)} / 10`}}}, scales:{x:{min:0,max:10,border:{display:false},grid:{color:'#171717'},ticks:{color:'#4d4d4d',font:{size:9},stepSize:2}},y:{border:{display:false},grid:{display:false},ticks:{color:'#8a8a8a',font:{size:9,weight:600},padding:12}}} }
+      });
+    }
+
+    async function refresh() {
+      try {
+        const [historyResponse,statsResponse] = await Promise.all([fetch('/api/history',{cache:'no-store'}),fetch('/api/stats',{cache:'no-store'})]);
+        if (!historyResponse.ok || !statsResponse.ok) throw new Error('API unavailable');
+        const [history,stats] = await Promise.all([historyResponse.json(),statsResponse.json()]);
+        const latest = history[0];
+        $('latest-score').innerHTML = `${latest ? Number(latest.overall_score).toFixed(1) : '—'}<span>/10</span>`;
+        $('latest-detail').textContent = latest ? `${latest.food} · ${latest.store} · ${fmtDate(latest.date)}` : 'No logged food entries';
+        setMetric('pesticide',stats.avg_pesticide);
+        setMetric('microplastic',stats.avg_microplastic);
+        setMetric('processing',stats.avg_processing);
+        renderTable(history); renderChart(history);
+        $('total-entries').textContent = `${String(stats.total_entries).padStart(3,'0')} entries indexed`;
+        $('updated').textContent = `Updated ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;
+        $('error-banner').style.display = 'none';
+      } catch (error) {
+        console.error(error); $('error-banner').style.display = 'block';
+      }
+    }
+
+    refresh();
+    setInterval(refresh,30000);
+  </script>
+</body>
+</html>
